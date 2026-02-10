@@ -102,7 +102,7 @@ parser.add_argument('--validation-mean-ap', action='store_true',
                     help='Perform computation of Mean Average Precision (mAP) during validation')
 parser.add_argument('--debug-steps', default=10, type=int,
                     help='Set the debug log output frequency.')
-parser.add_argument('--use-cuda', default=True, action='store_true',
+parser.add_argument('--use-cuda', default=True, type=bool,
                     help='Use CUDA to train model')
 parser.add_argument('--checkpoint-folder', '--model-dir', default='models/',
                     help='Directory for saving checkpoint models')

@@ -36,7 +36,7 @@ def parse_args():
     parser.add_argument('--max-images', type=int, default=-1, help='limit the total number of images downloaded across the whole dataset.  The default is to use all available data.')
     parser.add_argument('--max-annotations-per-class', type=int, default=-1, help='limit the number of bounding-box annotations per class.  Each class will be able to have up to this many annotations.  The default is to use all annotations per class.')
     parser.add_argument('--stats-only', action='store_true', help='only list the number of images from the selected classes, and quit')
-    
+    parser.add_argument('--balance_valid_test', type=bool, default=True, help='Only applies when max-images is used. When True, balance the image counts in the valid/test sets. If False, all sets will be limited proportionally to their original size.')
     return parser.parse_args()
 
 
@@ -176,8 +176,19 @@ if __name__ == '__main__':
 
     # limit the total number of images (if needed)
     if args.max_images > 0 and total_images > args.max_images:
+
+        if args.balance_valid_test:
+            train_max_images = int(args.max_images * (len(images["train"]) / total_images))
+            valid_max_images = int((args.max_images - train_max_images) / 2)
+            test_max_images = args.max_images - train_max_images - valid_max_images
+            max_images_dict = {"train": train_max_images, "validation": valid_max_images, "test": test_max_images}
+    
         for d in dataset_types:
-            max_images = int(args.max_images * (len(images[d]) / total_images))
+            if args.balance_valid_test:
+                max_images = max_images_dict[d]
+            else:
+                max_images = int(args.max_images * (len(images[d]) / total_images))
+
             images[d] = np.random.permutation(images[d])[:max_images]
             annotations[d] = annotations[d].loc[annotations[d]['ImageID'].isin(images[d]), :]
             logging.warning(f"Limiting {d} dataset to:  {len(images[d])} images ({len(annotations[d])} boxes)")
