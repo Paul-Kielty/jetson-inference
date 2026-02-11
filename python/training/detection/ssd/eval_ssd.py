@@ -13,20 +13,21 @@ import numpy as np
 import logging
 import sys
 from vision.ssd.mobilenet_v2_ssd_lite import create_mobilenetv2_ssd_lite, create_mobilenetv2_ssd_lite_predictor
-
+import cv2
 
 class MeanAPEvaluator:
     """
     Mean Average Precision (mAP) evaluator
     """
     def __init__(self, dataset, net, arch='mb1-ssd', eval_dir='models/eval_results', 
-                 nms_method='hard', iou_threshold=0.5, use_2007_metric=True, device='cuda:0'):
+                 nms_method='hard', iou_threshold=0.5, use_2007_metric=True, device='cuda:0', save_images=False, conf_threshold=0):
                  
         self.dataset = dataset
         self.net = net
         self.iou_threshold = iou_threshold
         self.use_2007_metric = use_2007_metric
-
+        self.save_images = save_images
+        self.conf_threshold = conf_threshold
         self.eval_path = pathlib.Path(eval_dir)
         self.eval_path.mkdir(exist_ok=True)
     
@@ -53,8 +54,43 @@ class MeanAPEvaluator:
 
         for i in range(len(self.dataset)):
             logging.debug(f"evaluating average precision   image {i} / {len(self.dataset)}")
-            image = self.dataset.get_image(i)
+            
+            image, boxes_gt, labels_gt = self.dataset[i]
             boxes, labels, probs = self.predictor.predict(image)
+            
+            if self.save_images:
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                for b in range(boxes.size(0)):
+                    if probs[b] < self.conf_threshold:
+                        continue
+                    box = boxes[b, :]
+                    box = [int(p) for p in box]
+                    
+                    cv2.rectangle(image, (box[0], box[1]), (box[2], box[3]), (0, 0, 255), 4)
+                    label = f"""{self.dataset.class_names[labels[b]]}: {probs[b]:.2f}"""
+                    
+                    cv2.putText(image, label,
+                                (box[0] + 20, box[1] + 40),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                1,  # font scale
+                                (0, 0, 255),
+                                2)  # line type
+                for b in range(len(boxes_gt)):
+                    box = boxes_gt[b]
+                    box = [int(p) for p in box]
+                    
+                    cv2.rectangle(image, (box[0], box[1]), (box[2], box[3]), (0, 255, 0), 4)
+                    label = f"""{self.dataset.class_names[labels_gt[b]]}"""
+                    
+                    cv2.putText(image, label,
+                                (box[0] + 20, box[1] + 40),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                1,  # font scale
+                                (0, 255, 0),
+                                2)  # line type
+                path = f"{self.eval_path}/eval_ssd_output{i}.jpg"
+                cv2.imwrite(path, image)
+                
             indexes = torch.ones(labels.size(0), 1, dtype=torch.float32) * i
             results.append(torch.cat([
                 indexes.reshape(-1, 1),
@@ -200,6 +236,8 @@ if __name__ == '__main__':
     parser.add_argument("--nms_method", type=str, default="hard")
     parser.add_argument("--iou_threshold", type=float, default=0.5, help="The threshold of Intersection over Union.")
     parser.add_argument("--eval_dir", default="models/eval_results", type=str, help="The directory to store evaluation results.")
+    parser.add_argument("--save_images", default=False, type=str2bool, help="Whether to save images with predicted bounding boxes drawn in the evaluation results directory.")
+    parser.add_argument("--save_images_conf", default=0, type=float, help="Only predicted bounding boxes with confidence scores at or above this threshold will be drawn on saved images.")
     parser.add_argument('--mb2_width_mult', default=1.0, type=float,
                         help='Width Multiplifier for MobilenetV2')
                         
@@ -238,7 +276,8 @@ if __name__ == '__main__':
     # eval the mAP
     eval = MeanAPEvaluator(dataset, net, arch=args.net, eval_dir=args.eval_dir, 
                            nms_method=args.nms_method, iou_threshold=args.iou_threshold,
-                           use_2007_metric=args.use_2007_metric, device=DEVICE)
+                           use_2007_metric=args.use_2007_metric, device=DEVICE, 
+                           save_images=args.save_images, conf_threshold=args.save_images_conf)
                                  
     mean_ap, class_ap = eval.compute()
     eval.log_results(mean_ap, class_ap)
