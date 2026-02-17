@@ -72,7 +72,7 @@ parser.add_argument('--weight-decay', default=5e-4, type=float,
                     help='Weight decay for SGD')
 parser.add_argument('--gamma', default=0.1, type=float,
                     help='Gamma update for SGD')
-parser.add_argument('--base-net-lr', default=0.001, type=float,
+parser.add_argument('--base-net-lr', default=None, type=float,
                     help='initial learning rate for base net, or None to use --lr')
 parser.add_argument('--extra-layers-lr', default=None, type=float,
                     help='initial learning rate for the layers not in base net and prediction heads.')
@@ -334,12 +334,14 @@ if __name__ == '__main__':
                 net.classification_headers.parameters()
             )}
         ]
+        param_group_names = ['Extra layers', 'Prediction heads']
     elif args.freeze_net:
         freeze_net_layers(net.base_net)
         freeze_net_layers(net.source_layer_add_ons)
         freeze_net_layers(net.extras)
         params = itertools.chain(net.regression_headers.parameters(), net.classification_headers.parameters())
         logging.info("Freeze all the layers except prediction heads.")
+        param_group_names = ['Prediction heads']
     else:
         params = [
             {'params': net.base_net.parameters(), 'lr': base_net_lr},
@@ -352,6 +354,7 @@ if __name__ == '__main__':
                 net.classification_headers.parameters()
             )}
         ]
+        param_group_names = ['Base net', 'Extra layers', 'Prediction heads']
 
     # load a previous model checkpoint (if requested)
     timer.start("Load Model")
@@ -405,6 +408,10 @@ if __name__ == '__main__':
     logging.info(f"Start training from epoch {last_epoch + 1}.")
     
     for epoch in range(last_epoch + 1, args.num_epochs):
+        
+        for param_group_name, param_group in zip(param_group_names,optimizer.param_groups):
+            print(f"LR ({param_group_name}): ", param_group['lr'])
+            
         train(train_loader, net, criterion, optimizer, device=DEVICE, debug_steps=args.debug_steps, epoch=epoch)
         scheduler.step()
         
