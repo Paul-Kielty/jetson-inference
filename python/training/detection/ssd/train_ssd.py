@@ -72,7 +72,7 @@ parser.add_argument('--weight-decay', default=5e-4, type=float,
                     help='Weight decay for SGD')
 parser.add_argument('--gamma', default=0.1, type=float,
                     help='Gamma update for SGD')
-parser.add_argument('--base-net-lr', default=None, type=float,
+parser.add_argument('--base-net-lr', default=0.001, type=float,
                     help='initial learning rate for base net, or None to use --lr')
 parser.add_argument('--extra-layers-lr', default=None, type=float,
                     help='initial learning rate for the layers not in base net and prediction heads.')
@@ -86,8 +86,8 @@ parser.add_argument('--milestones', default="80,100", type=str,
                     help="milestones for MultiStepLR")
 
 # Params for Cosine Annealing
-parser.add_argument('--t-max', default=100, type=float,
-                    help='T_max value for Cosine Annealing Scheduler.')
+parser.add_argument('--t-max', default=None, type=float,
+                    help='T_max value for Cosine Annealing Scheduler. Default = None, uses --num-epochs.')
 
 # Train params
 parser.add_argument('--batch-size', default=4, type=int,
@@ -397,7 +397,9 @@ if __name__ == '__main__':
         scheduler = MultiStepLR(optimizer, milestones=milestones,
                                                      gamma=0.1, last_epoch=last_epoch)
     elif args.scheduler == 'cosine':
-        logging.info("Uses CosineAnnealingLR scheduler.")
+        if args.t_max is None:
+            args.t_max = args.num_epochs
+        logging.info(f"Uses CosineAnnealingLR scheduler with t-max = {args.t_max}.")
         scheduler = CosineAnnealingLR(optimizer, args.t_max, last_epoch=last_epoch)
     else:
         logging.fatal(f"Unsupported Scheduler: {args.scheduler}.")
