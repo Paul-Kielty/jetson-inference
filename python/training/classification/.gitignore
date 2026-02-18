@@ -6,6 +6,5 @@
 *.png
 cat_dog*
 plants*
-data/
 models/
 logs/
